@@ -1,15 +1,8 @@
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <string.h>
-#include <unistd.h>
-#include <string>
-#include <iostream>
+#include "user.h"
 
 using namespace std;
 
-int main(void)
+int user(void)
 {
     int fd, errcode;
     struct sockaddr_in addr;
@@ -55,4 +48,64 @@ int main(void)
     freeaddrinfo(res);
     close(fd);
     exit(0);
+}
+
+int main(int argc, char **argv)
+{
+    char *nvalue = NULL;
+    char *pvalue = NULL;
+    int c;
+    char command[128];
+
+    opterr = 0;
+
+    while ((c = getopt(argc, argv, "n:p:")) != -1)
+        switch (c)
+        {
+        case 'n':
+            nvalue = optarg;
+            break;
+        case 'p':
+            pvalue = optarg;
+            break;
+        case '?':
+            if (optopt == 'n' || optopt == 'p')
+                fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+            else if (isprint(optopt))
+                fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+            else
+                fprintf(stderr,
+                        "Unknown option character '\\x%x'.\n",
+                        optopt);
+        default:
+            abort();
+        }
+    
+    printf("nvalue = %s, pvalue = %s\n", nvalue, pvalue);
+
+    while(1) {
+        memset(command, 0, 128);
+        scanf("%s", command);
+
+        if (strcmp(command, "exit") == 0) {
+            exit(0);
+        }
+        else if (strcmp(command, "login") == 0) {
+            printf("login\n");
+        }
+        else if (strcmp(command, "request") == 0) {
+            printf("request\n");
+        }
+        else if (strcmp(command, "list") == 0) {
+            printf("list\n");
+        }
+        else if (strcmp(command, "logout") == 0) {
+            printf("logout\n");
+        }
+        else {
+            printf("Command not found.\n");
+        }
+    }
+
+    return 0;
 }
