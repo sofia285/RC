@@ -1,6 +1,27 @@
 #include "user.h"
 
+#define ALPHANUMERIC "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
 using namespace std;
+
+int login(char * username, char * password)
+{
+    string user = username;
+    string pass = password;
+    
+    if (user.length() > 6 || user.find_first_not_of("0123456789") != string::npos) {
+        printf("Invalid username.\n");
+        printf("Username must be less than 6 characters and may only include digits.\n");
+        return -1;
+    }
+    if (pass.length() > 8 || pass.find_first_not_of(ALPHANUMERIC) != string::npos) {
+        printf("Invalid password.\n");
+        printf("Password must be less than 8 characters and may only include letters and digits.\n");
+        return -1;
+    }
+
+    return 0;
+}
 
 int user(void)
 {
@@ -56,6 +77,7 @@ int main(int argc, char **argv)
     char *pvalue = NULL;
     int c;
     char command[128];
+    string curr_user, curr_pass;
 
     opterr = 0;
 
@@ -84,14 +106,22 @@ int main(int argc, char **argv)
     printf("nvalue = %s, pvalue = %s\n", nvalue, pvalue);
 
     while(1) {
+        char buffer[128];
         memset(command, 0, 128);
-        scanf("%s", command);
+        fgets(buffer, 128, stdin);
+        sscanf(buffer, "%s", command);
 
         if (strcmp(command, "exit") == 0) {
             exit(0);
         }
         else if (strcmp(command, "login") == 0) {
-            printf("login\n");
+            char username[128], password[128];
+            sscanf(buffer, "%s %s %s", command, username, password);
+            if (!login(username, password)) {
+                printf("login successful\n");
+                curr_user = username;
+                curr_pass = password;
+            }
         }
         else if (strcmp(command, "request") == 0) {
             printf("request\n");
@@ -100,7 +130,14 @@ int main(int argc, char **argv)
             printf("list\n");
         }
         else if (strcmp(command, "logout") == 0) {
-            printf("logout\n");
+            if (curr_user.empty()) {
+                printf("You are not logged in.\n");
+            }
+            else {
+                curr_user.clear();
+                curr_pass.clear();
+                printf("logout successful\n");
+            }
         }
         else {
             printf("Command not found.\n");
