@@ -1,6 +1,8 @@
 #include "user.h"
 
 #define ALPHANUMERIC "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+#define SERVER_NAME "tejo.tecnico.ulisboa.pt"
+#define SERVER_PORT "58032"
 
 using namespace std;
 
@@ -9,12 +11,12 @@ int login(char * username, char * password)
     string user = username;
     string pass = password;
     
-    if (user.length() > 6 || user.find_first_not_of("0123456789") != string::npos) {
+    if (user.empty() || user.length() > 6 || user.find_first_not_of("0123456789") != string::npos) {
         printf("Invalid username.\n");
         printf("Username must be less than 6 characters and may only include digits.\n");
         return -1;
     }
-    if (pass.length() > 8 || pass.find_first_not_of(ALPHANUMERIC) != string::npos) {
+    if (pass.empty() || pass.length() > 8 || pass.find_first_not_of(ALPHANUMERIC) != string::npos) {
         printf("Invalid password.\n");
         printf("Password must be less than 8 characters and may only include letters and digits.\n");
         return -1;
@@ -23,7 +25,7 @@ int login(char * username, char * password)
     return 0;
 }
 
-int user(void)
+int start_udp(string server_name = SERVER_NAME, string server_port = SERVER_PORT)
 {
     int fd, errcode;
     struct sockaddr_in addr;
@@ -40,7 +42,7 @@ int user(void)
     hints.ai_family = AF_INET;      // IPv4
     hints.ai_socktype = SOCK_DGRAM; // UDP socket
 
-    errcode = getaddrinfo("tejo.tecnico.ulisboa.pt", "58001", &hints, &res);
+    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &res);
     // no futuro o port vai ter de ser +[nº de grupo] == 31
     if (errcode != 0) /*error*/
         exit(1);
@@ -81,9 +83,8 @@ int main(int argc, char **argv)
 
     opterr = 0;
 
-    while ((c = getopt(argc, argv, "n:p:")) != -1)
-        switch (c)
-        {
+    while ((c = getopt(argc, argv, "n:p:")) != -1) {
+        switch (c) {
         case 'n':
             nvalue = optarg;
             break;
@@ -96,12 +97,21 @@ int main(int argc, char **argv)
             else if (isprint(optopt))
                 fprintf(stderr, "Unknown option '-%c'.\n", optopt);
             else
-                fprintf(stderr,
-                        "Unknown option character '\\x%x'.\n",
-                        optopt);
-        default:
-            abort();
+                fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
+            default:
+                exit(1);
         }
+    }
+
+    if (nvalue && (strcmp(nvalue, "-p") == 0 || strcmp(nvalue, "-n") == 0)) {
+        fprintf(stderr, "Option -n requires an argument.\n");
+        exit(1);
+    }
+
+    if (pvalue && (strcmp(pvalue, "-p") == 0 || strcmp(pvalue, "-n") == 0)) {
+        fprintf(stderr, "Option -p requires an argument.\n");
+        exit(1);
+    }
     
     printf("nvalue = %s, pvalue = %s\n", nvalue, pvalue);
 
