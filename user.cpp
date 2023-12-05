@@ -13,69 +13,104 @@ typedef struct udp_contact {
     socklen_t addrlen;
 } udp_contact;
 
-int login(char * username, char * password, udp_contact info)
+int login(char * username, char * password, udp_contact udp)
 {
     string user = username;
     string pass = password;
-    char msg[128], buffer[128];
+    char msg[21], buffer[128];
+    memset(msg, 0, 21);
     
-    if (user.empty() || user.length() > 6 || user.find_first_not_of("0123456789") != string::npos) {
+    if (user.length() != 6 || user.find_first_not_of("0123456789") != string::npos) {
         printf("Invalid username.\n");
-        printf("Username must be less than 6 characters and may only include digits.\n");
+        printf("Username must be 6 characters and may only include digits.\n");
         return -1;
     }
-    if (pass.empty() || pass.length() > 8 || pass.find_first_not_of(ALPHANUMERIC) != string::npos) {
+    if (pass.length() != 8 || pass.find_first_not_of(ALPHANUMERIC) != string::npos) {
         printf("Invalid password.\n");
-        printf("Password must be less than 8 characters and may only include letters and digits.\n");
+        printf("Password must be 8 characters and may only include letters and digits.\n");
         return -1;
     }
 
     sprintf(msg, "LIN %s %s\n", user.c_str(), pass.c_str());
-    printf("msg = %s\n", msg);
 
-    ssize_t n = sendto(info.fd, msg, 128, 0, info.res->ai_addr, info.res->ai_addrlen);
+    ssize_t n = sendto(udp.fd, msg, 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) /*error*/
         exit(1);
 
-    printf("sent\n");
-
-    ssize_t addrlen = sizeof(info.addr);
-    n = recvfrom(info.fd, buffer, 128, 0, (struct sockaddr *)&info.addr, &info.addrlen);
+    ssize_t addrlen = sizeof(udp.addr);
+    n = recvfrom(udp.fd, buffer, 128, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) /*error*/
         exit(1);
-
-    printf("received\n");
 
     write(1, "echo: ", 6); // stdout
     write(1, buffer, n);
-    write(1, "\n", 2);
 
+    return 0;
+}
+
+int logout(string user, string pass, udp_contact udp)
+{
+    char msg[21], buffer[128];
+    memset(msg, 0, 21);
+
+    sprintf(msg, "LOU %s %s\n", user.c_str(), pass.c_str());
+
+    ssize_t n = sendto(udp.fd, msg, 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    ssize_t addrlen = sizeof(udp.addr);
+    n = recvfrom(udp.fd, buffer, 128, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    write(1, "echo: ", 6); // stdout
+    write(1, buffer, n);
+
+    return 0;
+}
+
+int unregister(string user, string pass, udp_contact udp) {
+    char msg[21], buffer[128];
+    memset(msg, 0, 21);
+
+    sprintf(msg, "UNR %s %s\n", user.c_str(), pass.c_str());
+
+    ssize_t n = sendto(udp.fd, msg, 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    ssize_t addrlen = sizeof(udp.addr);
+    n = recvfrom(udp.fd, buffer, 128, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    write(1, "echo: ", 6); // stdout
+    write(1, buffer, n);
     return 0;
 }
 
 udp_contact start_udp()
 {
-    int fd, errcode;
-    struct sockaddr_in addr;
-    socklen_t addrlen;
+    udp_contact udp;    
+    int errcode;
     ssize_t n;
-    char buffer[128], msg[128];
-    struct addrinfo hints, *res;
+    struct addrinfo hints;
 
-    fd = socket(AF_INET, SOCK_DGRAM, 0); // UDP socket
-    if (fd == -1)                        /*error*/
+    udp.fd = socket(AF_INET, SOCK_DGRAM, 0); // UDP socket
+    if (udp.fd == -1)                        /*error*/
         exit(1);
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;      // IPv4
     hints.ai_socktype = SOCK_DGRAM; // UDP socket
 
-    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &res);
+    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &udp.res);
     // no futuro o port vai ter de ser +[nº de grupo] == 31
     if (errcode != 0) /*error*/
         exit(1);
     
-    return udp_contact {fd, res, addr, addrlen};
+    return udp;
 }
 
 int main(int argc, char **argv)
@@ -130,7 +165,7 @@ int main(int argc, char **argv)
         sscanf(buffer, "%s", command);
 
         if (strcmp(command, "exit") == 0) {
-            exit(0);
+            break;
         }
         else if (strcmp(command, "login") == 0) {
             char username[128], password[128];
@@ -152,9 +187,23 @@ int main(int argc, char **argv)
                 printf("You are not logged in.\n");
             }
             else {
-                curr_user.clear();
-                curr_pass.clear();
-                printf("logout successful\n");
+                if (!logout(curr_user.c_str(), curr_pass.c_str(), udp)) {
+                    curr_user.clear();
+                    curr_pass.clear();
+                    printf("logout successful\n");
+                }
+            }
+        }
+        else if (strcmp(command, "unregister") == 0) {
+            if (curr_user.empty()) {
+                printf("You are not logged in. Please log in to unregister user.\n");
+            }
+            else {
+                if (!unregister(curr_user.c_str(), curr_pass.c_str(), udp)) {
+                    curr_user.clear();
+                    curr_pass.clear();
+                    printf("unregister successful\n");
+                }
             }
         }
         else {
