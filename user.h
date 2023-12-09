@@ -10,10 +10,13 @@
 #include <string>
 #include <iostream>
 
-int login();
-int logout();
-int request();
-int list();
+#define ALPHANUMERIC "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+#define SERVER_NAME "tejo.tecnico.ulisboa.pt"
+#define SERVER_PORT "58011"
+#define UNKNOWN_ERROR "An unexpected error has occured. Please try again later.\n"
+#define LOGIN_ERROR "You are not logged in.\n"
+#define SEND_ERROR "An error occured while sending the message.\n"
+#define RECEIVE_ERROR "An error occured while receiving the message.\n"
 
 
 #endif // __USER_H__
