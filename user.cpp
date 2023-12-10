@@ -237,6 +237,75 @@ int mybids(string user, udp_contact udp) {
     return -1;
 }
 
+int show_record(string aid, udp_contact udp) {
+    char msg[9], buffer[1024];
+    memset(msg, 0, 9);
+    memset(buffer, 0, 1024);
+
+    sprintf(msg, "SRC %s\n", aid.c_str());
+
+    ssize_t n = sendto(udp.fd, msg, 8, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    ssize_t addrlen = sizeof(udp.addr);
+    n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+    
+    if (strcmp(buffer, "RRC NOK\n") == 0) {
+        printf("Auction does not exist.\n");
+        return 0;
+    }
+    else if (strncmp(buffer, "RRC OK", 6) == 0) {
+        printf("Auction ID: %s\n", aid.c_str());
+        string host_UID, auction_name, asset_fname, start_value, start_date, start_time, timeactive;
+        char letter;
+        std::istringstream iss(buffer);
+        iss.ignore(7); // Ignore "RRD OK "
+        iss >> host_UID >> auction_name >> asset_fname >> start_value >> start_date >> start_time >> timeactive;
+        printf("Host UID: %s\n", host_UID.c_str());
+        printf("Auction name: %s\n", auction_name.c_str());
+        printf("Asset filename: %s\n", asset_fname.c_str());
+        printf("Start value: %s\n", start_value.c_str());
+        printf("Start date: %s\n", start_date.c_str());
+        printf("Start time: %s\n", start_time.c_str());
+        printf("Time active: %s\n", timeactive.c_str());
+
+        iss >> letter;
+        if (letter == 'B') {
+            printf("Bids:\n");
+            while (letter == 'B') {
+                string bidder_UID, bid_value, bid_date, bid_time, bid_sec_time;
+                iss >> bidder_UID >> bid_value >> bid_date >> bid_time >> bid_sec_time;
+                printf("Bidder UID: %s\n", bidder_UID.c_str());
+                printf("Bid value: %s\n", bid_value.c_str());
+                printf("Bid date: %s\n", bid_date.c_str());
+                printf("Bid time: %s\n", bid_time.c_str());
+                printf("Bid time in seconds: %s\n", bid_sec_time.c_str());
+                iss >> letter;
+            }
+        }
+
+        if (letter != 'E') {
+            printf(UNKNOWN_ERROR);
+            return -1;
+        }
+
+        string end_date, end_time, end_sec_time;
+        iss >> end_date >> end_time >> end_sec_time;
+        printf("End date: %s\n", end_date.c_str());
+        printf("End time: %s\n", end_time.c_str());
+        printf("End time in seconds: %s\n", end_sec_time.c_str());
+
+        return 0;
+    }
+
+    printf(UNKNOWN_ERROR);
+    return -1;
+
+}
+
 udp_contact start_udp()
 {
     udp_contact udp;    
@@ -333,10 +402,14 @@ int main(int argc, char **argv)
             mybids(curr_user, udp);
         }
         else if (strcmp(command, "show_record") == 0 || strcmp(command, "sr") == 0) {
-            // TODO: show_record
+            string aid;
+            stringstream ss(buffer);
+            ss >> command;
+            ss >> aid;
+            show_record(aid, udp);
         }
-        else if (strcmp(command, "list") == 0) {
-            // TODO: list
+        else if (strcmp(command, "list") == 0 || strcmp(command, "l") == 0) {
+            //list(udp);
         }
         else if (strcmp(command, "logout") == 0) {
             if (logout(curr_user.c_str(), curr_pass.c_str(), udp) == 0) {
