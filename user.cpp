@@ -242,6 +242,7 @@ int show_record(string aid, udp_contact udp) {
     memset(msg, 0, 9);
     memset(buffer, 0, 1024);
 
+    // TODO: check if aid is valid/make aid valid
     sprintf(msg, "SRC %s\n", aid.c_str());
 
     ssize_t n = sendto(udp.fd, msg, 8, 0, udp.res->ai_addr, udp.res->ai_addrlen);
@@ -329,6 +330,50 @@ udp_contact start_udp()
     return udp;
 }
 
+int list(udp_contact udp) {
+    char msg[5];
+    char buffer[100000];
+    memset(buffer, 0, 100000);
+
+    sprintf(msg, "LST\n");
+
+    ssize_t n = sendto(udp.fd, msg, 4, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    ssize_t addrlen = sizeof(udp.addr);
+    n = recvfrom(udp.fd, buffer, 99999, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+    
+    printf("buffer = %s\n", buffer);
+
+    if (strcmp(buffer, "RLS NOK\n") == 0) {
+        printf("No auctions available.\n");
+        return 0;
+    }
+    else if (strncmp(buffer, "RLS OK", 6) == 0) {
+        printf("Auctions:\n");
+        int aid, status;
+        std::istringstream iss(buffer);
+        iss.ignore(7); // Ignore "RLS OK "
+        
+        while (iss >> aid >> status) {
+            printf("Auction ID: %d - ", aid);
+            if (status == 1) {
+                printf("Active\n");
+            }
+            else if (status == 0) {
+                printf("Closed\n");
+            }
+        }
+        return 0;
+    }
+
+    printf(UNKNOWN_ERROR);
+    return -1;
+}
+
 int main(int argc, char **argv)
 {
     char *nvalue = NULL;
@@ -409,7 +454,7 @@ int main(int argc, char **argv)
             show_record(aid, udp);
         }
         else if (strcmp(command, "list") == 0 || strcmp(command, "l") == 0) {
-            //list(udp);
+            list(udp);
         }
         else if (strcmp(command, "logout") == 0) {
             if (logout(curr_user.c_str(), curr_pass.c_str(), udp) == 0) {
