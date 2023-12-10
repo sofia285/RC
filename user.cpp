@@ -136,9 +136,9 @@ int unregister(string user, string pass, udp_contact udp) {
 }
 
 int myauctions(string user, udp_contact udp) {
-    char msg[12], buffer[128];
+    char msg[12], buffer[1024];
     memset(msg, 0, 12);
-    memset(buffer, 0, 128);
+    memset(buffer, 0, 1024);
 
     if (user.empty()) {
         printf(LOGIN_ERROR);
@@ -152,20 +152,33 @@ int myauctions(string user, udp_contact udp) {
         exit(1);
 
     ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 7, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) /*error*/
         exit(1);
 
-    if (strcmp(buffer, "RMA NOK") == 0) {
+    if (strcmp(buffer, "RMA NOK\n") == 0) {
         printf("You have no auctions.\n");
         return 0;
     }
-    else if (strcmp(buffer, "RMA NLG") == 0) {
+    else if (strcmp(buffer, "RMA NLG\n") == 0) {
         printf(LOGIN_ERROR);
         return -1;
     }
-    else if (strcmp(buffer, "RMA OK ") == 0) {
-        printf("You have auctions.\n");
+    else if (strncmp(buffer, "RMA OK", 6) == 0) {
+        printf("Your auctions:\n");
+        int aid, status;
+        std::istringstream iss(buffer);
+        iss.ignore(7); // Ignore "RMA OK "
+        
+        while (iss >> aid >> status) {
+            printf("Auction ID: %d - ", aid);
+            if (status == 1) {
+                printf("Active\n");
+            }
+            else if (status == 0) {
+                printf("Closed\n");
+            }
+        }
         return 0;
     }
 
@@ -174,8 +187,9 @@ int myauctions(string user, udp_contact udp) {
 }
 
 int mybids(string user, udp_contact udp) {
-    char msg[12], buffer[128];
+    char msg[12], buffer[1024];
     memset(msg, 0, 12);
+    memset(buffer, 0, 1024);
 
     if (user.empty()) {
         printf(LOGIN_ERROR);
@@ -189,20 +203,33 @@ int mybids(string user, udp_contact udp) {
         exit(1);
 
     ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 128, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) /*error*/
         exit(1);
 
-    if (strcmp(buffer, "RMB NOK") == 0) {
+    if (strcmp(buffer, "RMB NOK\n") == 0) {
         printf("You have no bids.\n");
         return 0;
     }
-    else if (strcmp(buffer, "RMB NLG") == 0) {
+    else if (strcmp(buffer, "RMB NLG\n") == 0) {
         printf(LOGIN_ERROR);
         return -1;
     }
-    else if (strcmp(buffer, "RMA OK ") == 0) {
-        printf("You have bids.\n");
+    else if (strncmp(buffer, "RMB OK", 6) == 0) {
+        printf("Your bids:\n");
+        int aid, status;
+        std::istringstream iss(buffer);
+        iss.ignore(7); // Ignore "RMA OK "
+        
+        while (iss >> aid >> status) {
+            printf("Auction ID: %d - ", aid);
+            if (status == 1) {
+                printf("Active\n");
+            }
+            else if (status == 0) {
+                printf("Closed\n");
+            }
+        }
         return 0;
     }
 
@@ -281,6 +308,7 @@ int main(int argc, char **argv)
     while(1) {
         char buffer[128];
         memset(command, 0, 128);
+        printf("> ");
         fgets(buffer, 128, stdin);
         sscanf(buffer, "%s", command);
 

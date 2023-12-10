@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <string>
 #include <iostream>
+#include <sstream>
 
 #define ALPHANUMERIC "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 #define SERVER_NAME "tejo.tecnico.ulisboa.pt"
