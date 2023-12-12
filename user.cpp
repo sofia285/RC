@@ -9,37 +9,41 @@ typedef struct udp_contact {
     socklen_t addrlen;
 } udp_contact;
 
-int login(char * username, char * password, udp_contact udp)
-{
-    string user = username;
-    string pass = password;
-    char msg[21], buffer[9];
-    memset(msg, 0, 21);
-    memset(buffer, 0, 7);
+typedef struct tcp_contact {
+    int fd;
+    struct addrinfo *res;
+    struct sockaddr_in addr;
+    socklen_t addrlen;
+} tcp_contact;
+
+int login(string user, string pass, udp_contact udp) {
+    string msg;
+    char buffer[9];
+    memset(buffer, 0, 9);
     
     if (user.length() != 6 || user.find_first_not_of("0123456789") != string::npos) {
-        printf("Invalid username.\n");
-        printf("Username must be 6 characters and may only include digits.\n");
+        cout << "Invalid username.\n";
+        cout << "Username must be 6 characters and may only include digits.\n";
         return -1;
     }
     if (pass.length() != 8 || pass.find_first_not_of(ALPHANUMERIC) != string::npos) {
-        printf("Invalid password.\n");
-        printf("Password must be 8 characters and may only include letters and digits.\n");
+        cout << "Invalid password.\n";
+        cout << "Password must be 8 characters and may only include letters and digits.\n";
         return -1;
     }
 
-    sprintf(msg, "LIN %s %s\n", user.c_str(), pass.c_str());
+    msg = "LIN " + user + " " + pass + "\n";
 
-    ssize_t n = sendto(udp.fd, msg, 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
-    if (n == -1) {/*error*/
-        printf(SEND_ERROR);
+    ssize_t n = sendto(udp.fd, msg.c_str(), 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    if (n == -1) { /*error*/
+        cout << SEND_ERROR;
         return -1;
     }
 
     ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
-    if (n == -1) {/*error*/
-        printf(RECEIVE_ERROR);
+    if (n == -1) { /*error*/
+        cout << RECEIVE_ERROR;
         return -1;
     }
 
@@ -47,36 +51,40 @@ int login(char * username, char * password, udp_contact udp)
         return 0;
     }
     else if (strcmp(buffer, "RLI REG\n") == 0) {
-        printf("User has been registered.\n");
+        cout << "User has been registered.\n";
         return 0;
     }
     else if (strcmp(buffer, "RLI NOK\n") == 0) {
-        printf("Wrong password.\n");
+        cout << "Wrong password.\n";
         return -1;
     }
 
-    printf(UNKNOWN_ERROR);
+    cout << UNKNOWN_ERROR;
     return -1;
 }
 
-int logout(string user, string pass, udp_contact udp)
-{
-    char msg[21], buffer[9];
-    memset(msg, 0, 21);
+int logout(string user, string pass, udp_contact udp) {
+    string msg;
+    char buffer[9];
     memset(buffer, 0, 9);
 
-    sprintf(msg, "LOU %s %s\n", user.c_str(), pass.c_str());
+    if (user.empty() || pass.empty()) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
 
-    ssize_t n = sendto(udp.fd, msg, 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    msg = "LOU " + user + " " + pass + "\n";
+
+    ssize_t n = sendto(udp.fd, msg.c_str(), 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) {/*error*/
-        printf(SEND_ERROR);
+        cout << SEND_ERROR;
         return -1;
     }
 
     ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) {/*error*/
-        printf(RECEIVE_ERROR);
+        cout << RECEIVE_ERROR;
         return -1;
     }
 
@@ -84,38 +92,38 @@ int logout(string user, string pass, udp_contact udp)
         return 0;
     }
     else if (strcmp(buffer, "RLO UNR\n") == 0) {
-        printf("User does not exist.\n");
+        cout << "User does not exist.\n";
         return -1;
     }
     else if (strcmp(buffer, "RLO NOK\n") == 0) {
-        printf(LOGIN_ERROR);
+        cout << LOGIN_ERROR;
         return -1;
     }
 
-    printf(UNKNOWN_ERROR);
+    cout << UNKNOWN_ERROR;
     return -1;
 }
 
 int unregister(string user, string pass, udp_contact udp) {
-    char msg[21], buffer[9];
-    memset(msg, 0, 21);
+    string msg;
+    char buffer[9];
     memset(buffer, 0, 9);
 
     if (user.empty() || pass.empty()) {
-        printf(LOGIN_ERROR);
+        cout << LOGIN_ERROR;
         return -1;
     }
 
-    sprintf(msg, "UNR %s %s\n", user.c_str(), pass.c_str());
+    msg = "UNR " + user + " " + pass + "\n";
 
-    ssize_t n = sendto(udp.fd, msg, 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    ssize_t n = sendto(udp.fd, msg.c_str(), 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) /*error*/
         exit(1);
 
     ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) {/*error*/
-        printf(RECEIVE_ERROR);
+        cout << RECEIVE_ERROR;
         return -1;
     }
 
@@ -123,31 +131,31 @@ int unregister(string user, string pass, udp_contact udp) {
         return 0;
     }
     else if (strcmp(buffer, "RUR UNR\n") == 0) {
-        printf("User does not exist.\n");
+        cout << "User does not exist.\n";
         return -1;
     }
     else if (strcmp(buffer, "RUR NOK\n") == 0) {
-        printf(LOGIN_ERROR);
+        cout << LOGIN_ERROR;
         return -1;
     }
 
-    printf(UNKNOWN_ERROR);
+    cout << UNKNOWN_ERROR;
     return -1;
 }
 
 int myauctions(string user, udp_contact udp) {
-    char msg[12], buffer[1024];
-    memset(msg, 0, 12);
+    string msg;
+    char buffer[1024];
     memset(buffer, 0, 1024);
 
     if (user.empty()) {
-        printf(LOGIN_ERROR);
+        cout << LOGIN_ERROR;
         return -1;
     }
 
-    sprintf(msg, "LMA %s\n", user.c_str());
+    msg = "LMA " + user + "\n";
 
-    ssize_t n = sendto(udp.fd, msg, 11, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    ssize_t n = sendto(udp.fd, msg.c_str(), 11, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) /*error*/
         exit(1);
 
@@ -157,38 +165,39 @@ int myauctions(string user, udp_contact udp) {
         exit(1);
 
     if (strcmp(buffer, "RMA NOK\n") == 0) {
-        printf("You have no auctions.\n");
+        cout << "You have no auctions.\n";
         return 0;
     }
     else if (strcmp(buffer, "RMA NLG\n") == 0) {
-        printf(LOGIN_ERROR);
+        cout << LOGIN_ERROR;
         return -1;
     }
     else if (strncmp(buffer, "RMA OK", 6) == 0) {
-        printf("Your auctions:\n");
+        cout <<"Your auctions:\n";
         int aid, status;
-        std::istringstream iss(buffer);
+        istringstream iss(buffer);
         iss.ignore(7); // Ignore "RMA OK "
         
         while (iss >> aid >> status) {
-            printf("Auction ID: %d - ", aid);
+            cout << "Auction ID: %d - " << aid;
             if (status == 1) {
-                printf("Active\n");
+                cout << "Active";
             }
             else if (status == 0) {
-                printf("Closed\n");
+                cout << "Closed";
             }
+            cout << endl;
         }
         return 0;
     }
 
-    printf(UNKNOWN_ERROR);
+    cout << UNKNOWN_ERROR;
     return -1;
 }
 
 int mybids(string user, udp_contact udp) {
-    char msg[12], buffer[1024];
-    memset(msg, 0, 12);
+    string msg;
+    char buffer[1024];
     memset(buffer, 0, 1024);
 
     if (user.empty()) {
@@ -196,9 +205,9 @@ int mybids(string user, udp_contact udp) {
         return -1;
     }
 
-    sprintf(msg, "LMB %s\n", user.c_str());
+    msg = "LMB " + user + "\n";
 
-    ssize_t n = sendto(udp.fd, msg, 11, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    ssize_t n = sendto(udp.fd, msg.c_str(), 11, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) /*error*/
         exit(1);
 
@@ -307,29 +316,6 @@ int show_record(string aid, udp_contact udp) {
 
 }
 
-udp_contact start_udp()
-{
-    udp_contact udp;    
-    int errcode;
-    ssize_t n;
-    struct addrinfo hints;
-
-    udp.fd = socket(AF_INET, SOCK_DGRAM, 0); // UDP socket
-    if (udp.fd == -1)                        /*error*/
-        exit(1);
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;      // IPv4
-    hints.ai_socktype = SOCK_DGRAM; // UDP socket
-
-    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &udp.res);
-    // no futuro o port vai ter de ser +[nº de grupo] == 31
-    if (errcode != 0) /*error*/
-        exit(1);
-    
-    return udp;
-}
-
 int list(udp_contact udp) {
     char msg[5];
     char buffer[100000];
@@ -372,6 +358,89 @@ int list(udp_contact udp) {
 
     printf(UNKNOWN_ERROR);
     return -1;
+}
+
+int open(string user, string pass, string asset_fname, string start_value, string timeactive, tcp_contact tcp) {
+    char msg[1024], buffer[1024];
+    memset(msg, 0, 1024);
+    memset(buffer, 0, 1024);
+
+    if (asset_fname.empty() || start_value.empty() || timeactive.empty()) {
+        printf("Invalid arguments.\n");
+        return -1;
+    }
+
+    sprintf(msg, "OPN %s %s %s\n", asset_fname.c_str(), start_value.c_str(), timeactive.c_str());
+
+    ssize_t n = connect(tcp.fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = write(tcp.fd, msg, 1023);
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = read(tcp.fd, buffer, 1023);
+    if (n == -1) /*error*/
+        exit(1);
+
+    if (strcmp(buffer, "ROP OK\n") == 0) {
+        printf("Auction opened successfully.\n");
+        return 0;
+    }
+    else if (strcmp(buffer, "ROP NOK\n") == 0) {
+        printf("Auction could not be opened.\n");
+        return -1;
+    }
+
+    printf(UNKNOWN_ERROR);
+    return -1;
+
+}
+
+udp_contact start_udp()
+{
+    udp_contact udp;    
+    int errcode;
+    ssize_t n;
+    struct addrinfo hints;
+
+    udp.fd = socket(AF_INET, SOCK_DGRAM, 0); // UDP socket
+    if (udp.fd == -1)                        /*error*/
+        exit(1);
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_DGRAM; // UDP socket
+
+    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &udp.res);
+    // no futuro o port vai ter de ser +[nº de grupo] == 31
+    if (errcode != 0) /*error*/
+        exit(1);
+    
+    return udp;
+}
+
+tcp_contact start_tcp() {
+    tcp_contact tcp;
+    int errcode;
+    ssize_t n;
+    struct addrinfo hints;
+
+    tcp.fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
+    if (tcp.fd == -1)                        /*error*/
+        exit(1);
+    
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP socket
+
+    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &tcp.res);
+    // no futuro o port vai ter de ser +[nº de grupo] == 31
+    if (errcode != 0) /*error*/
+        exit(1);
+    
+    return tcp;
 }
 
 int main(int argc, char **argv)
