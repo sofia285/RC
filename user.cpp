@@ -179,12 +179,12 @@ int myauctions(string user, udp_contact udp) {
         iss.ignore(7); // Ignore "RMA OK "
         
         while (iss >> aid >> status) {
-            cout << "Auction ID: %d - " << aid;
+            cout << "Auction ID: " << aid;
             if (status == 1) {
-                cout << "Active";
+                cout << " - Active";
             }
             else if (status == 0) {
-                cout << "Closed";
+                cout << " - Closed";
             }
             cout << endl;
         }
@@ -318,8 +318,8 @@ int show_record(string aid, udp_contact udp) {
 
 int list(udp_contact udp) {
     char msg[5];
-    char buffer[100000];
-    memset(buffer, 0, 100000);
+    char buffer[6002];
+    memset(buffer, 0, 6002);
 
     sprintf(msg, "LST\n");
 
@@ -328,11 +328,11 @@ int list(udp_contact udp) {
         exit(1);
 
     ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 99999, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 6001, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) /*error*/
         exit(1);
     
-    printf("buffer = %s\n", buffer);
+    printf("buffer = %ld\n", strlen(buffer));
 
     if (strcmp(buffer, "RLS NOK\n") == 0) {
         printf("No auctions available.\n");
@@ -360,93 +360,68 @@ int list(udp_contact udp) {
     return -1;
 }
 
-int open(string user, string pass, string asset_fname, string start_value, string timeactive, tcp_contact tcp) {
-    char msg[1024], buffer[1024];
-    memset(msg, 0, 1024);
-    memset(buffer, 0, 1024);
-
-    if (asset_fname.empty() || start_value.empty() || timeactive.empty()) {
-        printf("Invalid arguments.\n");
-        return -1;
-    }
-
-    sprintf(msg, "OPN %s %s %s\n", asset_fname.c_str(), start_value.c_str(), timeactive.c_str());
-
-    ssize_t n = connect(tcp.fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
-
-    n = write(tcp.fd, msg, 1023);
-    if (n == -1) /*error*/
-        exit(1);
-
-    n = read(tcp.fd, buffer, 1023);
-    if (n == -1) /*error*/
-        exit(1);
-
-    if (strcmp(buffer, "ROP OK\n") == 0) {
-        printf("Auction opened successfully.\n");
-        return 0;
-    }
-    else if (strcmp(buffer, "ROP NOK\n") == 0) {
-        printf("Auction could not be opened.\n");
-        return -1;
-    }
-
-    printf(UNKNOWN_ERROR);
-    return -1;
-
-}
-
-udp_contact start_udp()
+udp_contact start_udp(string asip, string asport)
 {
     udp_contact udp;    
     int errcode;
     ssize_t n;
     struct addrinfo hints;
 
+    if (asip.empty()) asip = SERVER_NAME;
+    if (asport.empty()) asport = SERVER_PORT;
+
     udp.fd = socket(AF_INET, SOCK_DGRAM, 0); // UDP socket
-    if (udp.fd == -1)                        /*error*/
+    if (udp.fd == -1) {
+        cout << CONNECTION_ERROR;
         exit(1);
+    }
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;      // IPv4
     hints.ai_socktype = SOCK_DGRAM; // UDP socket
 
-    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &udp.res);
+    errcode = getaddrinfo(asip.c_str(), asport.c_str(), &hints, &udp.res);
     // no futuro o port vai ter de ser +[nº de grupo] == 31
-    if (errcode != 0) /*error*/
+    if (errcode != 0) {/*error*/
+        cout << CONNECTION_ERROR;
         exit(1);
+    }
     
     return udp;
 }
 
-tcp_contact start_tcp() {
+tcp_contact start_tcp(string asip, string asport) {
     tcp_contact tcp;
     int errcode;
     ssize_t n;
     struct addrinfo hints;
 
+    if (asip.empty()) asip = SERVER_NAME;
+    if (asport.empty()) asport = SERVER_PORT;
+
     tcp.fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
-    if (tcp.fd == -1)                        /*error*/
+    if (tcp.fd == -1) {
+        cout << CONNECTION_ERROR;
         exit(1);
+    }
     
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;      // IPv4
     hints.ai_socktype = SOCK_STREAM; // TCP socket
 
-    errcode = getaddrinfo(SERVER_NAME, SERVER_PORT, &hints, &tcp.res);
+    errcode = getaddrinfo(asip.c_str(), asport.c_str(), &hints, &tcp.res);
     // no futuro o port vai ter de ser +[nº de grupo] == 31
-    if (errcode != 0) /*error*/
+    if (errcode == -1) {
+        cout << CONNECTION_ERROR;
         exit(1);
-    
+    }
+
     return tcp;
 }
 
 int main(int argc, char **argv)
 {
-    char *nvalue = NULL;
-    char *pvalue = NULL;
+    string nvalue, pvalue;
     int c;
     char command[128];
     string curr_user, curr_pass;
@@ -473,20 +448,20 @@ int main(int argc, char **argv)
         }
     }
 
-    if (nvalue && (strcmp(nvalue, "-p") == 0 || strcmp(nvalue, "-n") == 0)) {
+    if (!nvalue.empty() && (nvalue == "-p" || nvalue == "-n")) {
         fprintf(stderr, "Option -n requires an argument.\n");
         exit(1);
     }
 
-    if (pvalue && (strcmp(pvalue, "-p") == 0 || strcmp(pvalue, "-n") == 0)) {
+    if (!pvalue.empty() && (pvalue == "-p" || pvalue == "-n")) {
         fprintf(stderr, "Option -p requires an argument.\n");
         exit(1);
     }
     
-    printf("nvalue = %s, pvalue = %s\n", nvalue, pvalue);
+    cout << "nvalue = " << nvalue << ", pvalue = " << pvalue << endl;
 
-    // TODO: make nvalue and pvalue change server name and port
-    udp_contact udp = start_udp();
+    udp_contact udp = start_udp(nvalue, pvalue);
+    tcp_contact tcp = start_tcp(nvalue, pvalue);
 
     while(1) {
         char buffer[128];
@@ -498,6 +473,8 @@ int main(int argc, char **argv)
         if (strcmp(command, "exit") == 0) {
             freeaddrinfo(udp.res);
             close(udp.fd);
+            freeaddrinfo(tcp.res);
+            close(tcp.fd);
             break;
         }
         else if (strcmp(command, "login") == 0) {
@@ -517,7 +494,7 @@ int main(int argc, char **argv)
         }
         else if (strcmp(command, "show_record") == 0 || strcmp(command, "sr") == 0) {
             string aid;
-            stringstream ss(buffer);
+            istringstream ss(buffer);
             ss >> command;
             ss >> aid;
             show_record(aid, udp);
@@ -526,14 +503,14 @@ int main(int argc, char **argv)
             list(udp);
         }
         else if (strcmp(command, "logout") == 0) {
-            if (logout(curr_user.c_str(), curr_pass.c_str(), udp) == 0) {
+            if (logout(curr_user, curr_pass, udp) == 0) {
                 curr_user.clear();
                 curr_pass.clear();
                 printf("You are now logged out.\n");
             }
         }
         else if (strcmp(command, "unregister") == 0) {
-            if (unregister(curr_user.c_str(), curr_pass.c_str(), udp) == 0) {
+            if (unregister(curr_user, curr_pass, udp) == 0) {
                 curr_user.clear();
                 curr_pass.clear();
                 printf("You have been unregistered.\n");

@@ -18,6 +18,7 @@
 #define LOGIN_ERROR "You are not logged in.\n"
 #define SEND_ERROR "An error occured while sending the message.\n"
 #define RECEIVE_ERROR "An error occured while receiving the message.\n"
+#define CONNECTION_ERROR "An error occured while connecting to the server.\n"
 
 
 #endif // __USER_H__
