@@ -546,5 +546,8 @@ int main(int argc, char **argv)
         }
     }
 
+    freeaddrinfo(udp.res);
+    close(udp.fd);
+
     return 0;
 }
