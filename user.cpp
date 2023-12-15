@@ -41,7 +41,9 @@ int login(string user, string pass, udp_contact udp) {
     }
 
     ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 9, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    cout << "n = " << n << endl;
+    cout << "buffer = " << buffer << endl;
     if (n == -1) { /*error*/
         cout << RECEIVE_ERROR;
         return -1;
