@@ -304,8 +304,7 @@ int show_record(string aid, udp_contact udp) {
                 printf("Bid date: %s\n", bid_date.c_str());
                 printf("Bid time: %s\n", bid_time.c_str());
                 printf("Bid time in seconds: %s\n", bid_sec_time.c_str());
-                iss >> letter;
-            } while (letter == 'B');
+            } while (iss >> letter && letter == 'B');
         }
 
         if (letter == 'E') {
