@@ -41,7 +41,7 @@ int login(string user, string pass, udp_contact udp) {
     }
 
     ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 9, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) { /*error*/
         cout << RECEIVE_ERROR;
         return -1;
@@ -262,7 +262,7 @@ int show_record(string aid, udp_contact udp) {
     n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) /*error*/
         exit(1);
-    
+        
     if (strcmp(buffer, "RRC NOK\n") == 0) {
         printf("Auction does not exist.\n");
         return 0;
@@ -297,16 +297,13 @@ int show_record(string aid, udp_contact udp) {
             }
         }
 
-        if (letter != 'E') {
-            printf(UNKNOWN_ERROR);
-            return -1;
+        if (letter == 'E') {
+            string end_date, end_time, end_sec_time;
+            iss >> end_date >> end_time >> end_sec_time;
+            printf("End date: %s\n", end_date.c_str());
+            printf("End time: %s\n", end_time.c_str());
+            printf("Duration: %s seconds\n", end_sec_time.c_str());
         }
-
-        string end_date, end_time, end_sec_time;
-        iss >> end_date >> end_time >> end_sec_time;
-        printf("End date: %s\n", end_date.c_str());
-        printf("End time: %s\n", end_time.c_str());
-        printf("End time in seconds: %s\n", end_sec_time.c_str());
 
         return 0;
     }
@@ -360,6 +357,261 @@ int list(udp_contact udp) {
     return -1;
 }
 
+int open_auction(string user, string pass, string name, string asset_fname, string start_value, string timeactive, tcp_contact tcp) {
+    string msg;
+    char buffer[1024];
+    size_t fsize;
+    struct stat file_stat;
+    memset(buffer, 0, 1024);
+
+    if (user.empty() || pass.empty()) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
+
+    if (name.empty() || asset_fname.empty() || start_value.empty() || timeactive.empty()) {
+        cout << "Invalid arguments.\n";
+        return -1;
+    }
+
+    if (stat(asset_fname.c_str(), &file_stat) == -1) {
+        cout << "Failed to find file " << asset_fname << "." << endl;
+        return -1;
+    }
+    fsize = file_stat.st_size;
+
+    msg = "OPN " + user + " " + pass + " " + name + " " + start_value + " " + timeactive + " " + asset_fname + " " + to_string(fsize);
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
+    if (fd == -1) {
+        cout << CONNECTION_ERROR;
+        return -1;
+    }
+
+    ssize_t n = connect(fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = write(fd, msg.c_str(), msg.length());
+    if (n == -1) /*error*/
+        exit(1);
+
+    cout << "message sent: " << msg << endl;
+
+    int file = open(asset_fname.c_str(), O_RDONLY);
+    printf("file = %d\n", file);
+    n = sendfile(fd, file, NULL, fsize);
+    if (n == -1) /*error*/
+        exit(1);
+    
+    close(file);
+    
+    cout << "file sent" << endl;
+
+    n = write(fd, "/n", 1);
+    if (n == -1) /*error*/
+        cout << "newline_error" << endl;
+    
+    cout << "newline sent" << endl;
+
+    n = read(fd, buffer, 1024);
+    if (n == -1) /*error*/
+        exit(1);
+    
+    close(fd);
+
+    cout << "buffer = " << buffer << endl;
+
+    if (strncmp(buffer, "ROA OK", 6) == 0) {
+        istringstream iss(buffer);
+        int aid;
+        iss.ignore(7); // Ignore "ROA OK "
+        iss >> aid;
+        cout << "Auction opened successfully.\n";
+        cout << "Auction ID: " << aid << endl;
+        return 0;
+    }
+    else if (strcmp(buffer, "ROP NOK\n") == 0) {
+        cout << "Auction could not be opened.\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "ROP NLG\n") == 0) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
+
+    cout << UNKNOWN_ERROR;
+    return -1;
+
+}
+
+int close_auction(string user, string pass, string aid, tcp_contact tcp) {
+    string msg;
+    char buffer[9];
+    memset(buffer, 0, 9);
+
+    if (user.empty() || pass.empty()) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
+
+    if (aid.empty() || aid.length() != 3) {
+        cout << "Invalid auction ID.\n";
+        return -1;
+    }
+
+    msg = "CLS " + user + " " + pass + " " + aid + "\n";
+
+    ssize_t n = connect(tcp.fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = write(tcp.fd, msg.c_str(), msg.length());
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = read(tcp.fd, buffer, 9);
+    if (n == -1) /*error*/
+        exit(1);
+
+    if (strcmp(buffer, "RCL OK\n") == 0) {
+        cout << "Auction " << aid << " closed successfully.\n";
+        return 0;
+    }
+    else if (strcmp(buffer, "RCL NOK\n") == 0) {
+        cout << "Invalid user or password\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "RCL NLG\n") == 0) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
+        else if (strcmp(buffer, "RCL EAU\n") == 0) {
+        cout << "Auction " << aid << " does not exist.\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "RCL EOW\n") == 0) {
+        cout << "Auction could not be closed, as it is not the user's.\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "RCL END\n") == 0) {
+        cout << "Auction has already been closed.\n";
+        return -1;
+    }
+
+    cout << UNKNOWN_ERROR;
+    return -1;
+}
+
+int show_asset(string aid, tcp_contact tcp) {
+    string msg;
+    char buffer[1024];
+    memset(buffer, 0, 1024);
+
+    if (aid.empty() || aid.length() != 3) {
+        cout << "Invalid auction ID.\n";
+        return -1;
+    }
+
+    msg = "SAS " + aid + "\n";
+
+    ssize_t n = connect(tcp.fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = write(tcp.fd, msg.c_str(), msg.length());
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = read(tcp.fd, buffer, 1024);
+    if (n == -1) /*error*/
+        exit(1);
+
+    if (strcmp(buffer, "RAS NOK\n") == 0) {
+        cout << "A problem occured while sending the file.\n";
+        return -1;
+    }
+    else if (strncmp(buffer, "RAS OK", 6) == 0) {
+        cout << "Asset:\n";
+        int fsize;
+        istringstream iss(buffer);
+        iss.ignore(7); // Ignore "RAS OK "
+        iss >> fsize;
+        cout << "File size: " << fsize << endl;
+        return 0;
+    }
+
+    cout << UNKNOWN_ERROR;
+    return -1;
+}
+
+int bid(string user, string pass, string aid, string value, tcp_contact tcp) {
+    string msg;
+    char buffer[9];
+    memset(buffer, 0, 9);
+
+    if (user.empty() || pass.empty()) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
+
+    if (aid.empty() || aid.length() != 3) {
+        cout << "Invalid auction ID.\n";
+        return -1;
+    }
+
+    if (value.empty() || value.find_first_not_of("0123456789") != string::npos) {
+        cout << "Invalid bid value.\n";
+        return -1;
+    }
+
+    msg = "BID " + user + " " + pass + " " + aid + " " + value + "\n";
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
+    if (fd == -1) {
+        cout << CONNECTION_ERROR;
+        return -1;
+    }
+
+    ssize_t n = connect(fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = write(tcp.fd, msg.c_str(), msg.length());
+    if (n == -1) /*error*/
+        exit(1);
+
+    n = read(tcp.fd, buffer, 9);
+    if (n == -1) /*error*/
+        exit(1);
+    
+    close(fd);
+
+    if (strcmp(buffer, "RBD ACC\n") == 0) {
+        cout << "Bid placed successfully.\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "RBD NOK\n") == 0) {
+        cout << "Auction has already closed.\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "RBD NLG\n") == 0) {
+        cout << LOGIN_ERROR;
+        return -1;
+    }
+    else if (strcmp(buffer, "RBD REF\n") == 0) {
+        cout << "A larger bid has already been placed\n";
+        return -1;
+    }
+    else if (strcmp(buffer, "RBD ILG\n") == 0) {
+        cout << "You cannot bid on your own auction.\n";
+        return -1;
+    }
+
+    cout << UNKNOWN_ERROR;
+    return -1;
+}
+
 udp_contact start_udp(string asip, string asport)
 {
     udp_contact udp;    
@@ -398,12 +650,6 @@ tcp_contact start_tcp(string asip, string asport) {
 
     if (asip.empty()) asip = SERVER_NAME;
     if (asport.empty()) asport = SERVER_PORT;
-
-    tcp.fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
-    if (tcp.fd == -1) {
-        cout << CONNECTION_ERROR;
-        exit(1);
-    }
     
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;      // IPv4
@@ -471,6 +717,9 @@ int main(int argc, char **argv)
         sscanf(buffer, "%s", command);
 
         if (strcmp(command, "exit") == 0) {
+            if (!curr_user.empty() && !curr_pass.empty()) {
+                logout(curr_user, curr_pass, udp);
+            }
             freeaddrinfo(udp.res);
             close(udp.fd);
             freeaddrinfo(tcp.res);
@@ -515,6 +764,34 @@ int main(int argc, char **argv)
                 curr_pass.clear();
                 printf("You have been unregistered.\n");
             }
+        }
+        else if (strcmp(command, "open") == 0) {
+            string name, asset_fname, start_value, timeactive;
+            istringstream ss(buffer);
+            ss >> command;
+            ss >> name >> asset_fname >> start_value >> timeactive;
+            open_auction(curr_user, curr_pass, name, asset_fname, start_value, timeactive, tcp);
+        }
+        else if (strcmp(command, "close") == 0) {
+            string aid;
+            istringstream ss(buffer);
+            ss >> command;
+            ss >> aid;
+            close_auction(curr_user, curr_pass, aid, tcp);
+        }
+        else if (strcmp(command, "show_asset") == 0 || strcmp(command, "sa") == 0) {
+            string aid;
+            istringstream ss(buffer);
+            ss >> command;
+            ss >> aid;
+            show_asset(aid, tcp);
+        }
+        else if (strcmp(command, "bid") == 0 || strcmp(command, "b") == 0) {
+            string aid, value;
+            istringstream ss(buffer);
+            ss >> command;
+            ss >> aid >> value;
+            bid(curr_user, curr_pass, aid, value, tcp);
         }
         else {
             printf("Command not found.\n");

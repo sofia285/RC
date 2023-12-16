@@ -1,6 +1,7 @@
 #ifndef __USER_H__
 #define __USER_H__
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -10,6 +11,9 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <sys/sendfile.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define ALPHANUMERIC "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 #define SERVER_NAME "tejo.tecnico.ulisboa.pt"
