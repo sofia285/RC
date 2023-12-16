@@ -10,7 +10,6 @@ typedef struct udp_contact {
 } udp_contact;
 
 typedef struct tcp_contact {
-    int fd;
     struct addrinfo *res;
     struct sockaddr_in addr;
     socklen_t addrlen;
@@ -37,14 +36,13 @@ int login(string user, string pass, udp_contact udp) {
     ssize_t n = sendto(udp.fd, msg.c_str(), 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) { /*error*/
         cout << SEND_ERROR;
-        return -1;
+        return 1;
     }
 
-    ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 9, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) { /*error*/
         cout << RECEIVE_ERROR;
-        return -1;
+        return 1;
     }
 
     if (strcmp(buffer, "RLI OK\n") == 0) {
@@ -78,14 +76,13 @@ int logout(string user, string pass, udp_contact udp) {
     ssize_t n = sendto(udp.fd, msg.c_str(), 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
     if (n == -1) {/*error*/
         cout << SEND_ERROR;
-        return -1;
+        return 1;
     }
 
-    ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 9, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) {/*error*/
         cout << RECEIVE_ERROR;
-        return -1;
+        return 1;
     }
 
     if (strcmp(buffer, "RLO OK\n") == 0) {
@@ -117,14 +114,15 @@ int unregister(string user, string pass, udp_contact udp) {
     msg = "UNR " + user + " " + pass + "\n";
 
     ssize_t n = sendto(udp.fd, msg.c_str(), 20, 0, udp.res->ai_addr, udp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
-    ssize_t addrlen = sizeof(udp.addr);
-    n = recvfrom(udp.fd, buffer, 8, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
+    n = recvfrom(udp.fd, buffer, 9, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
     if (n == -1) {/*error*/
         cout << RECEIVE_ERROR;
-        return -1;
+        return 1;
     }
 
     if (strcmp(buffer, "RUR OK\n") == 0) {
@@ -156,13 +154,16 @@ int myauctions(string user, udp_contact udp) {
     msg = "LMA " + user + "\n";
 
     ssize_t n = sendto(udp.fd, msg.c_str(), 11, 0, udp.res->ai_addr, udp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
-    ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
 
     if (strcmp(buffer, "RMA NOK\n") == 0) {
         cout << "You have no auctions.\n";
@@ -208,13 +209,16 @@ int mybids(string user, udp_contact udp) {
     msg = "LMB " + user + "\n";
 
     ssize_t n = sendto(udp.fd, msg.c_str(), 11, 0, udp.res->ai_addr, udp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
-    ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
 
     if (strcmp(buffer, "RMB NOK\n") == 0) {
         printf("You have no bids.\n");
@@ -228,16 +232,17 @@ int mybids(string user, udp_contact udp) {
         printf("Your bids:\n");
         int aid, status;
         std::istringstream iss(buffer);
-        iss.ignore(7); // Ignore "RMA OK "
+        iss.ignore(7); // Ignore "RMB OK "
         
         while (iss >> aid >> status) {
-            printf("Auction ID: %d - ", aid);
+            cout << "Auction ID: " << aid;
             if (status == 1) {
-                printf("Active\n");
+                cout << " - Active";
             }
             else if (status == 0) {
-                printf("Closed\n");
+                cout << " - Closed";
             }
+            cout << endl;
         }
         return 0;
     }
@@ -247,21 +252,27 @@ int mybids(string user, udp_contact udp) {
 }
 
 int show_record(string aid, udp_contact udp) {
-    char msg[9], buffer[1024];
-    memset(msg, 0, 9);
+    string msg;
+    char buffer[1024];
     memset(buffer, 0, 1024);
 
-    // TODO: check if aid is valid/make aid valid
-    sprintf(msg, "SRC %s\n", aid.c_str());
+    if (aid.length() < 3) {
+        aid.insert(0, 3 - aid.length(), '0');
+    }
 
-    ssize_t n = sendto(udp.fd, msg, 8, 0, udp.res->ai_addr, udp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    msg = "SRC " + aid + "\n";
 
-    ssize_t addrlen = sizeof(udp.addr);
+    ssize_t n = sendto(udp.fd, msg.c_str(), 8, 0, udp.res->ai_addr, udp.res->ai_addrlen);
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
+
     n = recvfrom(udp.fd, buffer, 1024, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
         
     if (strcmp(buffer, "RRC NOK\n") == 0) {
         printf("Auction does not exist.\n");
@@ -285,7 +296,7 @@ int show_record(string aid, udp_contact udp) {
         iss >> letter;
         if (letter == 'B') {
             printf("Bids:\n");
-            while (letter == 'B') {
+            do {
                 string bidder_UID, bid_value, bid_date, bid_time, bid_sec_time;
                 iss >> bidder_UID >> bid_value >> bid_date >> bid_time >> bid_sec_time;
                 printf("Bidder UID: %s\n", bidder_UID.c_str());
@@ -294,7 +305,7 @@ int show_record(string aid, udp_contact udp) {
                 printf("Bid time: %s\n", bid_time.c_str());
                 printf("Bid time in seconds: %s\n", bid_sec_time.c_str());
                 iss >> letter;
-            }
+            } while (letter == 'B');
         }
 
         if (letter == 'E') {
@@ -321,16 +332,17 @@ int list(udp_contact udp) {
     sprintf(msg, "LST\n");
 
     ssize_t n = sendto(udp.fd, msg, 4, 0, udp.res->ai_addr, udp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
-    ssize_t addrlen = sizeof(udp.addr);
     n = recvfrom(udp.fd, buffer, 6001, 0, (struct sockaddr *)&udp.addr, &udp.addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
     
-    printf("buffer = %ld\n", strlen(buffer));
-
     if (strcmp(buffer, "RLS NOK\n") == 0) {
         printf("No auctions available.\n");
         return 0;
@@ -338,17 +350,18 @@ int list(udp_contact udp) {
     else if (strncmp(buffer, "RLS OK", 6) == 0) {
         printf("Auctions:\n");
         int aid, status;
-        std::istringstream iss(buffer);
+        istringstream iss(buffer);
         iss.ignore(7); // Ignore "RLS OK "
         
         while (iss >> aid >> status) {
-            printf("Auction ID: %d - ", aid);
+            cout << "Auction ID: " << aid;
             if (status == 1) {
-                printf("Active\n");
+                cout << " - Active";
             }
             else if (status == 0) {
-                printf("Closed\n");
+                cout << " - Closed";
             }
+            cout << endl;
         }
         return 0;
     }
@@ -385,45 +398,42 @@ int open_auction(string user, string pass, string name, string asset_fname, stri
     int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
     if (fd == -1) {
         cout << CONNECTION_ERROR;
-        return -1;
+        return 1;
     }
 
     ssize_t n = connect(fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << CONNECTION_ERROR;
+        return 1;
+    }
 
     n = write(fd, msg.c_str(), msg.length());
-    if (n == -1) /*error*/
-        exit(1);
-
-    cout << "message sent: " << msg << endl;
-    cout << "message length: " << msg.length() << endl;
-    cout << "n = " << n << endl;
-    cout << "fsize = " << fsize << endl;
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
     int file = open(asset_fname.c_str(), O_RDONLY);
-    printf("file = %d\n", file);
     n = sendfile(fd, file, NULL, fsize);
-    if (n == -1) /*error*/
-        exit(1);
-    
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
     close(file);
     
-    cout << "file sent n = "<< n << endl;
-
     n = write(fd, "\n", 1);
-    if (n == -1) /*error*/
-        cout << "newline_error" << endl;
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
     
-    cout << "newline sent n ="<< n << endl;
-
     n = read(fd, buffer, 1024);
-    if (n == -1) /*error*/
-        cout << "read_error" << endl;
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
     
     close(fd);
-
-    cout << "buffer = " << buffer << endl;
 
     if (strncmp(buffer, "ROA OK", 6) == 0) {
         istringstream iss(buffer);
@@ -465,20 +475,34 @@ int close_auction(string user, string pass, string aid, tcp_contact tcp) {
 
     msg = "CLS " + user + " " + pass + " " + aid + "\n";
 
-    ssize_t n = connect(tcp.fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
+    if (fd == -1) {
+        cout << CONNECTION_ERROR;
+        return 1;
+    }
 
-    n = write(tcp.fd, msg.c_str(), msg.length());
-    if (n == -1) /*error*/
-        exit(1);
+    ssize_t n = connect(fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) {/*error*/
+        cout << CONNECTION_ERROR;
+        return 1;
+    }
 
-    n = read(tcp.fd, buffer, 9);
-    if (n == -1) /*error*/
-        exit(1);
+    n = write(fd, msg.c_str(), msg.length());
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
+
+    n = read(fd, buffer, 9);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
+
+    close(fd);
 
     if (strcmp(buffer, "RCL OK\n") == 0) {
-        cout << "Auction " << aid << " closed successfully.\n";
+        cout << "Auction closed successfully.\n";
         return 0;
     }
     else if (strcmp(buffer, "RCL NOK\n") == 0) {
@@ -490,7 +514,7 @@ int close_auction(string user, string pass, string aid, tcp_contact tcp) {
         return -1;
     }
         else if (strcmp(buffer, "RCL EAU\n") == 0) {
-        cout << "Auction " << aid << " does not exist.\n";
+        cout << "Auction does not exist.\n";
         return -1;
     }
     else if (strcmp(buffer, "RCL EOW\n") == 0) {
@@ -508,6 +532,7 @@ int close_auction(string user, string pass, string aid, tcp_contact tcp) {
 
 int show_asset(string aid, tcp_contact tcp) {
     string msg;
+    // TODO: receive file
     char buffer[1024];
     memset(buffer, 0, 1024);
 
@@ -518,32 +543,61 @@ int show_asset(string aid, tcp_contact tcp) {
 
     msg = "SAS " + aid + "\n";
 
-    ssize_t n = connect(tcp.fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
+    if (fd == -1) {
+        cout << CONNECTION_ERROR;
+        return 1;
+    }
 
-    n = write(tcp.fd, msg.c_str(), msg.length());
-    if (n == -1) /*error*/
-        exit(1);
+    ssize_t n = connect(fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
+    if (n == -1) {/*error*/
+        cout << CONNECTION_ERROR;
+        return 1;
+    }
 
-    n = read(tcp.fd, buffer, 1024);
-    if (n == -1) /*error*/
-        exit(1);
+    n = write(fd, msg.c_str(), msg.length());
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
-    if (strcmp(buffer, "RAS NOK\n") == 0) {
+    n = read(fd, buffer, 1024);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
+
+    cout << buffer << endl;
+
+    if (strcmp(buffer, "RSA NOK\n") == 0) {
         cout << "A problem occured while sending the file.\n";
+        close(fd);
         return -1;
     }
-    else if (strncmp(buffer, "RAS OK", 6) == 0) {
+    else if (strncmp(buffer, "RSA OK", 6) == 0) {
         cout << "Asset:\n";
+        string fname;
         int fsize;
         istringstream iss(buffer);
         iss.ignore(7); // Ignore "RAS OK "
-        iss >> fsize;
+        iss >> fname >> fsize;
+
+        char buffer[fsize];
+        n = read(fd, buffer, fsize);
+        if (n == -1) {/*error*/
+            cout << RECEIVE_ERROR;
+            return 1;
+        }
+
+        cout << buffer << endl;
+
+        cout << "File name: " << fname << endl;
         cout << "File size: " << fsize << endl;
+        close(fd);
         return 0;
     }
 
+    close(fd);
     cout << UNKNOWN_ERROR;
     return -1;
 }
@@ -573,26 +627,32 @@ int bid(string user, string pass, string aid, string value, tcp_contact tcp) {
     int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
     if (fd == -1) {
         cout << CONNECTION_ERROR;
-        return -1;
+        return 1;
     }
 
     ssize_t n = connect(fd, tcp.res->ai_addr, tcp.res->ai_addrlen);
-    if (n == -1) /*error*/
-        exit(1);
+    if (n == -1) {/*error*/
+        cout << CONNECTION_ERROR;
+        return 1;
+    }
 
-    n = write(tcp.fd, msg.c_str(), msg.length());
-    if (n == -1) /*error*/
-        exit(1);
+    n = write(fd, msg.c_str(), msg.length());
+    if (n == -1) {/*error*/
+        cout << SEND_ERROR;
+        return 1;
+    }
 
-    n = read(tcp.fd, buffer, 9);
-    if (n == -1) /*error*/
-        exit(1);
+    n = read(fd, buffer, 9);
+    if (n == -1) {/*error*/
+        cout << RECEIVE_ERROR;
+        return 1;
+    }
     
     close(fd);
 
     if (strcmp(buffer, "RBD ACC\n") == 0) {
         cout << "Bid placed successfully.\n";
-        return -1;
+        return 0;
     }
     else if (strcmp(buffer, "RBD NOK\n") == 0) {
         cout << "Auction has already closed.\n";
@@ -726,7 +786,6 @@ int main(int argc, char **argv)
             freeaddrinfo(udp.res);
             close(udp.fd);
             freeaddrinfo(tcp.res);
-            close(tcp.fd);
             break;
         }
         else if (strcmp(command, "login") == 0) {
