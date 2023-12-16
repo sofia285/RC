@@ -380,7 +380,7 @@ int open_auction(string user, string pass, string name, string asset_fname, stri
     }
     fsize = file_stat.st_size;
 
-    msg = "OPN " + user + " " + pass + " " + name + " " + start_value + " " + timeactive + " " + asset_fname + " " + to_string(fsize);
+    msg = "OPA " + user + " " + pass + " " + name + " " + start_value + " " + timeactive + " " + asset_fname + " " + to_string(fsize) + " ";
 
     int fd = socket(AF_INET, SOCK_STREAM, 0); // TCP socket
     if (fd == -1) {
@@ -397,6 +397,9 @@ int open_auction(string user, string pass, string name, string asset_fname, stri
         exit(1);
 
     cout << "message sent: " << msg << endl;
+    cout << "message length: " << msg.length() << endl;
+    cout << "n = " << n << endl;
+    cout << "fsize = " << fsize << endl;
 
     int file = open(asset_fname.c_str(), O_RDONLY);
     printf("file = %d\n", file);
@@ -406,17 +409,17 @@ int open_auction(string user, string pass, string name, string asset_fname, stri
     
     close(file);
     
-    cout << "file sent" << endl;
+    cout << "file sent n = "<< n << endl;
 
-    n = write(fd, "/n", 1);
+    n = write(fd, "\n", 1);
     if (n == -1) /*error*/
         cout << "newline_error" << endl;
     
-    cout << "newline sent" << endl;
+    cout << "newline sent n ="<< n << endl;
 
     n = read(fd, buffer, 1024);
     if (n == -1) /*error*/
-        exit(1);
+        cout << "read_error" << endl;
     
     close(fd);
 
