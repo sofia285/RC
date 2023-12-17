@@ -2,19 +2,6 @@
 
 using namespace std;
 
-typedef struct udp_contact {
-    int fd;
-    struct addrinfo *res;
-    struct sockaddr_in addr;
-    socklen_t addrlen;
-} udp_contact;
-
-typedef struct tcp_contact {
-    struct addrinfo *res;
-    struct sockaddr_in addr;
-    socklen_t addrlen;
-} tcp_contact;
-
 int login(string user, string pass, udp_contact udp) {
     string msg;
     char buffer[9];
@@ -381,8 +368,24 @@ int open_auction(string user, string pass, string name, string asset_fname, stri
         return -1;
     }
 
-    if (name.empty() || asset_fname.empty() || start_value.empty() || timeactive.empty()) {
-        cout << "Invalid arguments.\n";
+    if (name.empty() || name.length() > 10 || name.find_first_not_of(ALPHANUMERIC) != string::npos) {
+        cout << "Invalid auction name.\n";
+        cout << "Auction name must be less than 10 characters and may only include numbers and letters.\n";
+        return -1;
+    }
+
+    if (asset_fname.empty() || asset_fname.length() > 24 || asset_fname.find_first_not_of(FILE_NAMING) != string::npos) {
+        cout << "Invalid asset filename.\n";
+        return -1;
+    }
+
+    if (start_value.empty() || start_value.length() > 6 || start_value.find_first_not_of("0123456789") != string::npos) {
+        cout << "Invalid start value.\n";
+        return -1;
+    }
+
+    if (timeactive.empty() || timeactive.length() > 5 || timeactive.find_first_not_of("0123456789") != string::npos) {
+        cout << "Invalid time active.\n";
         return -1;
     }
 
@@ -581,6 +584,16 @@ int show_asset(string aid, tcp_contact tcp) {
         cout << "Asset:\n";
         iss.ignore(7); // Ignore "RSA OK "
         iss >> fname >> fsize;
+
+        if (fname.empty() || fname.length() > 24 || fname.find_first_not_of(FILE_NAMING) != string::npos) {
+            cout << "Invalid file name.\n";
+            return -1;
+        }
+
+        if (fsize.empty() || fsize.find_first_not_of("0123456789") != string::npos || atol(fsize.c_str()) < 0 || atol(fsize.c_str()) > 999999) {
+            cout << "Invalid file size.\n";
+            return -1;
+        }
         cout << "File name: " << fname << endl;
         cout << "File size: " << fsize << endl;
         content = server_msg.substr(7 + fname.length() + fsize.length() + 2);
@@ -766,8 +779,6 @@ int main(int argc, char **argv)
         exit(1);
     }
     
-    cout << "nvalue = " << nvalue << ", pvalue = " << pvalue << endl;
-
     udp_contact udp = start_udp(nvalue, pvalue);
     tcp_contact tcp = start_tcp(nvalue, pvalue);
 
