@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -11,22 +12,33 @@
 #include <arpa/inet.h>
 #include <fstream>
 #include <sys/stat.h>
-
+#include <filesystem>
+#include <netinet/in.h>
+#include <vector>
+#include <fcntl.h>
+#include <sys/sendfile.h>
+#include <iomanip>
+#include <chrono>
+#include <ctime>
 
 using namespace std;
 
 int main(int argc, char **argv)
 {
-    string rel_path = "/mnt/c/Users/2003s/OneDrive/Documentos/ist/RC/RC/";
+    // Get the current system time
+    auto currentTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
 
-    string uidDir = rel_path + "ASDIR/USERS/" + "112233";
+    // Convert the system time to a local time structure
+    tm* localTime = localtime(&currentTime);
 
-    ifstream uidDirCheck(uidDir);
-    if (!uidDirCheck.good()) {
-        cout << "failed" <<endl;
-        // User doesn't exist
-        return 0;
-    }
-    cout << "success" <<endl;
+    // Format the local time as a string
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", localTime);
 
+    // Print the formatted date and time
+    cout << "Current Date and Time: " << buffer << std::endl;
+
+    cout << time(nullptr) << endl;
+
+    return 0;
 }
