@@ -530,7 +530,7 @@ int close_auction(string user, string pass, string aid, tcp_contact tcp) {
 }
 
 int show_asset(string aid, tcp_contact tcp) {
-    string msg;
+    string msg, server_msg;
     // TODO: receive file
     char buffer[1024];
     memset(buffer, 0, 1024);
@@ -560,37 +560,30 @@ int show_asset(string aid, tcp_contact tcp) {
         return 1;
     }
 
-    n = read(fd, buffer, 1024);
-    if (n == -1) {/*error*/
-        cout << RECEIVE_ERROR;
-        return 1;
+    while (n = read(fd, buffer, 1024)) {
+        if (n == -1) {/*error*/
+            cout << RECEIVE_ERROR;
+            return 1;
+        }
+        server_msg.append(buffer, n);
     }
-    cout << buffer;
+    close(fd);
 
-    if (strcmp(buffer, "RSA NOK\n") == 0) {
+    if (strcmp(server_msg.c_str(), "RSA NOK\n") == 0) {
         cout << "A problem occured while sending the file.\n";
-        close(fd);
         return -1;
     }
-    else if (strncmp(buffer, "RSA OK", 6) == 0) {
-        string file_info(buffer), fname, content;
-        int fsize;
-
-        while (n = read(fd, buffer, 1024)) {
-            if (n == -1) {/*error*/
-                cout << RECEIVE_ERROR;
-                return 1;
-            }
-            file_info.append(buffer, n);
-        }
+    else if (strncmp(server_msg.c_str(), "RSA OK", 6) == 0) {
+        string fname, fsize, content;
+        long size;
+        istringstream iss(server_msg);
 
         cout << "Asset:\n";
-        istringstream iss(file_info);
         iss.ignore(7); // Ignore "RSA OK "
         iss >> fname >> fsize;
         cout << "File name: " << fname << endl;
         cout << "File size: " << fsize << endl;
-        content = file_info.substr(7 + fname.length() + to_string(fsize).length() + 2);
+        content = server_msg.substr(7 + fname.length() + fsize.length() + 2);
         
         int file = open(fname.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (file == -1) {
@@ -601,11 +594,9 @@ int show_asset(string aid, tcp_contact tcp) {
         n = write(file, content.c_str(), content.length());
         close(file);
 
-        close(fd);
         return 0;
     }
 
-    close(fd);
     cout << UNKNOWN_ERROR;
     return -1;
 }
