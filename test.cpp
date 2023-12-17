@@ -25,20 +25,11 @@ using namespace std;
 
 int main(int argc, char **argv)
 {
-    // Get the current system time
-    auto currentTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
+    string file = "000200.txt";
 
-    // Convert the system time to a local time structure
-    tm* localTime = localtime(&currentTime);
+    int a = stoi(file.substr(0, 6));
 
-    // Format the local time as a string
-    char buffer[80];
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", localTime);
-
-    // Print the formatted date and time
-    cout << "Current Date and Time: " << buffer << std::endl;
-
-    cout << time(nullptr) << endl;
+    cout << a << endl;
 
     return 0;
 }

@@ -49,5 +49,7 @@ int CreateBIDSDir (string AID);
 int CreateSTARTFile(string AID, string UID, string Fname, string name, string start_value, string time_active);
 int closeAuc(string UID, string password, string AID);
 int CreateHostedFile(string UID, string password, string AID);
+int showAsset(string AID, int socketfd);
+string bid(string UID, string password, string AID, string value);
 
 #endif // __AS_H__

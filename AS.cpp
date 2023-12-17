@@ -86,8 +86,6 @@ int main(int argc, char **argv){
         return -1;
     }
 
-    cout << "Server listening on port " << serverPort << endl;
-
     // Set up variables for select()
     fd_set readfds;
     int maxSocket;
@@ -257,7 +255,6 @@ int main(int argc, char **argv){
             }
 
             // Send the response back to the client
-            cout << "Sending response: " << responseMessage;
             sendto(serverSocketUDP, responseMessage.c_str(), responseMessage.length(), 0,  (struct sockaddr*)&clientAddress, sizeof(clientAddress));
         }
 
@@ -269,15 +266,12 @@ int main(int argc, char **argv){
                 return -1;
             }
 
-            cout << "New TCP connection accepted" << endl;
-
             char buf[128] = {0};
             string name, start_value, time_active, Fname, Fsize;
             ssize_t  bytesRead = read(newTcpClientSocket, buf, 128);
 
             if (bytesRead == -1) {
                 // Client disconnected or error
-                cout << "TCP client disconnected" << endl;
                 close(newTcpClientSocket);
                 continue;
             }
@@ -288,8 +282,10 @@ int main(int argc, char **argv){
             // Open
             if (commandTCP == "OPA") {
                 iss >> UID >> password >> name >> start_value >> time_active >> Fname >> Fsize;
-                cout << "open auction: UID " << UID << endl;
-                cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
+                if (verbose) {
+                    cout << "open auction: UID " << UID << endl;
+                    cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
+                }
                 ostringstream auction_name;
                 auction_name << setw(3) << setfill('0') << aid++;
                 AID = auction_name.str();
@@ -308,7 +304,6 @@ int main(int argc, char **argv){
                 string FnamePath = "./ASDIR/AUCTIONS/" + AID + "/ASSET/" + Fname;
                 int file = open( (FnamePath).c_str() , O_WRONLY | O_CREAT, 0644);
                 if (file == -1) {
-                    cout << "Error opening file" << FnamePath << endl;
                     return 1;
                 }
 
@@ -338,37 +333,60 @@ int main(int argc, char **argv){
                 }
             }            
             
-            if (commandTCP == "CLS") {
+            else if (commandTCP == "CLS") {
                 iss >> UID >> password >> AID;
                 if (verbose) {
                     cout << "close auction: UID " << UID << endl;
                     cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
-                    int n = closeAuc(UID, password, AID);
-                    if (n == -1) {
-                        responseMessage = "RCL NLG\n";
-                    }
-                    else if (n == 0) {
-                        responseMessage = "RCL NOK\n";
-                    }
-                    else if (n == -2) {
-                        responseMessage = "RCL EAU\n";
-                    }
-                    else if (n == -3) {
-                        responseMessage = "RCL END\n";
-                    }
-                    else if (n == -4) {
-                        responseMessage = "RCL EOW\n";
-                    }
-                    else if (n == 1){
-                        responseMessage = "RCL OK\n";
-                    }
-                    
                 }
+
+                int n = closeAuc(UID, password, AID);
+                if (n == -1) {
+                    responseMessage = "RCL NLG\n";
+                }
+                else if (n == 0) {
+                    responseMessage = "RCL NOK\n";
+                }
+                else if (n == -2) {
+                    responseMessage = "RCL EAU\n";
+                }
+                else if (n == -3) {
+                    responseMessage = "RCL END\n";
+                }
+                else if (n == -4) {
+                    responseMessage = "RCL EOW\n";
+                }
+                else if (n == 1){
+                    responseMessage = "RCL OK\n";
+                }
+                    
             }
-            cout << "Sending response: " << responseMessage << endl;
-            bytesRead = write(newTcpClientSocket, responseMessage.c_str(), responseMessage.length());
-            if (bytesRead == -1) {
-                return 1;
+
+            else if (commandTCP == "SAS") {
+                iss >> AID;
+                if (verbose) {
+                    cout << "show asset AID: " << AID << endl;
+                    cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
+                }
+                int n = showAsset(AID, newTcpClientSocket);
+            }
+
+            else if (commandTCP == "BID") {
+                string value;
+                iss >> UID >> password >> AID >> value;
+                if (verbose) {
+                    cout << "bid: UID " << UID << endl;
+                    cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
+                }
+                responseMessage = bid(UID, password, AID, value);
+            }
+
+            if (commandTCP != "SAS") {
+                cout << "Sending response: " << responseMessage << endl;
+                bytesRead = write(newTcpClientSocket, responseMessage.c_str(), responseMessage.length());
+                if (bytesRead == -1) {
+                    return 1;
+                }
             }
             close(newTcpClientSocket);
 
@@ -415,7 +433,6 @@ int CreateUSERSDir(string UID) {
     int ret = mkdir(UID_dirname.c_str(),  0700);
 
     if (ret == -1) {
-        cout << "Error making dir" << endl;
         return 0;
     }
 
@@ -801,11 +818,53 @@ string ListAuctions() {
 }
 
 string show_record(string AID) {
-    return "here\n";
+    /*auctionDir = "./ASDIR/AUCTIONS/" + AID;
+    ifstream aucDir(auctionDir);
+    if (!aucDir.good()) {
+        // if user does not exist, create user
+        return "RRC NOK\n";
+    }
+
+    string msg = "RRC OK";
+
+    string startFile = "./ASDIR/AUCTIONS/" + AID + "START_" + AID + ".txt";
+    // Read the password from the file
+    string UID, name, Fname, start_value, time_active, start_time, start_unixTime;
+    ifstream fp_start(startFile);
+    fp_start >> UID >> name >> Fname >> start_value >> time_active >> start_time >> start_unixTime;
+    msg = msg + " " + UID + " " + name + " " + Fname + " " + start_value + " " + start_time + " " + time_active;
+
+    string bidsDir = "./ASDIR/AUCTIONS/" + AID + "/BIDS";
+    
+    // Specify the path to the directory
+    fs::path directory_path = bidsDir;
+
+    // Check if the directory exists
+    if (fs::exists(directory_path) && fs::is_directory(directory_path)) {
+        // Iterate over the files in the directory and store their names
+        for (const auto& entry : fs::directory_iterator(directory_path)) {
+            string filepath = (entry.path()).string();
+
+            ofstream fp(filepath);
+
+            if (!fp.is_open()) {return "RRC NOK";}
+
+            string UID, value, time, unixTime;
+
+            fp >> UID >> value >> time >> unixTime;
+            msg = msg + " B " + UID + " " + value + " " + time + "\n";
+        }
+    }
+    string endDir = "./ASDIR/AUCTIONS/" + AID + "/" + "END_" + AID + ".txt";
+    ifstream fp_end(endDir);
+    string end_time, end_unixTime;
+    fp_end >> end_time >> end_unixTime;
+    msg = msg + " E " + end_time + end_unixTime + "\n";
+    return msg;*/
+    return "RRC OK\n";
 }
 
 // TCP functions
-
 int CreateASSETDir(string AID) {
     string ASSET_dirname = "./ASDIR/AUCTIONS/" + AID + "/ASSET";
 
@@ -846,8 +905,6 @@ int CreateHostedFile(string UID, string password, string AID){
     // Construct the path to the UID_pass.txt file
     string passwordFilePath = "./ASDIR/USERS/" + UID + "/" + UID + "_pass.txt";
 
-    cout << "Password file: " << passwordFilePath << endl;
-
     // Open and check if the password file exists
     ifstream passwordFile(passwordFilePath);
     if (!passwordFile.good()) {
@@ -867,8 +924,6 @@ int CreateHostedFile(string UID, string password, string AID){
 
     string fileName = "./ASDIR/USERS/" + UID + "/HOSTED/" + AID + ".txt";
     ofstream fp_hosted(fileName);
-
-    cout << "Create hosted file: " << fileName << endl;
 
     if (!fp_hosted.is_open()) {return 0;}
 
@@ -901,8 +956,6 @@ int CreateSTARTFile(string AID, string UID, string Fname, string name, string st
 
 int closeAuc(string UID, string password, string AID) {
 
-    cout << "close auction: UID " << UID << " pass: " << password << " aid: " << AID << endl;
-
     string uidDir = "./ASDIR/USERS";
     string aidDir = "./ASDIR/AUCTIONS";
 
@@ -912,7 +965,6 @@ int closeAuc(string UID, string password, string AID) {
     // Open and check if the password file exists
     ifstream uidFile(uidFilePath);
     if (!uidFile.good()) {
-        cout << "UID not found " << uidFilePath << endl;
         // if user does not exist
         return 0;
     }
@@ -922,7 +974,6 @@ int closeAuc(string UID, string password, string AID) {
     // Open and check if the password file exists
     ifstream passwordFile(passwordFilePath);
     if (!passwordFile.good()) {
-        cout << "Password file not found" << passwordFilePath << endl;
         // if user does not exist, create user
         return 0;
     }
@@ -933,7 +984,6 @@ int closeAuc(string UID, string password, string AID) {
     // Open and check if the login file exists
     ifstream loginFile(loginFilePath);
     if (!loginFile.good()) {
-        cout << "User not logged in " << loginFilePath << endl;
         // if user is not logged in
         return -1;
     }
@@ -988,13 +1038,156 @@ int closeAuc(string UID, string password, string AID) {
         startFile >> name >> Fname >> start_value >> time_active >> start_time >> start_unixTime;
         int auctionDuration = time(nullptr) - stoi(start_unixTime);
 
-        fp_end << datetime << auctionDuration;
+        fp_end << datetime << " " << auctionDuration;
         return 1;
     } else {
         // the user exists but the password is incorrect
-        cout << "incorrect password: " << password << endl;
-        return -1;
+        return 0;
     }
 
     return 1;
+}
+
+int showAsset(string AID, int socketfd){
+    int error = 0;
+
+    string auctionDir = "./ASDIR/AUCTIONS/" + AID;
+
+    ifstream dir(auctionDir);
+    if (!dir.good()) {
+        error = -1;
+    }
+
+    string START_dir = auctionDir + "/" + "START_" + AID + ".txt";
+    ifstream startFile(START_dir);
+    if (!startFile.good()) {
+        error = -1;
+    }
+
+    string uid, name, fname; 
+    startFile >> uid >> name >> fname;
+
+    string file_dir = auctionDir + "/ASSET" + "/" + fname;
+
+    struct stat file_stat;
+    if (stat(file_dir.c_str(), &file_stat) == -1) {
+        error = -1;
+    }
+
+    size_t fsize = file_stat.st_size;
+
+    if (error == 0){
+        string responseMessage = "RSA OK " + fname + " " + to_string(fsize) + " ";
+        write(socketfd, responseMessage.c_str(), responseMessage.length());
+
+        int file = open(file_dir.c_str(), O_RDONLY);
+        if (file == -1) {
+            error = -1;
+        }
+        ssize_t n = sendfile(socketfd, file, NULL, fsize);
+        if (n == -1) {
+            error = -1;
+        }
+        close(file);
+
+        n = write(socketfd, "\n", 1);
+        if (n == -1) {
+            error = -1;
+        }
+    } 
+
+    else {
+        string responseMessage = "RSA NOK\n";
+        write(socketfd, responseMessage.c_str(), responseMessage.length());
+    }
+
+    return 1;
+}
+
+string bid(string UID, string password, string AID, string value) {
+    string uidDir = "./ASDIR/USERS/" + UID;
+    string aidDir = "./ASDIR/AUCTIONS/" + AID + "/";
+
+    // Open and check if the UID directory exists
+    ifstream uidDirCheck(uidDir);
+    if (!uidDirCheck.good()) {
+        // if user does not exist, create user
+        return "RBD NOK\n";
+    }
+
+    // Construct the path to the UID_pass.txt file
+    string loginFilePath = uidDir + "/" + UID + "_login.txt";
+
+    // Open and check if the password file exists
+    ifstream loginFile(loginFilePath);
+    if (!loginFile.good()) {
+        // if user does not exist, create user
+        return "RBD NLG\n";
+    }
+
+    string endFilePath = aidDir + "END_" + AID + ".txt";
+    ifstream endFile(endFilePath);
+    if (endFile.good()) {
+        return "RBD NOK\n";
+    }
+
+    // Specify the path to the directory
+    fs::path directory_path = aidDir + "BIDS";
+
+    // Check if the directory exists
+    if (fs::exists(directory_path) && fs::is_directory(directory_path)) {
+        // Create a vector to store file names in the directory
+        vector<fs::path> file_names;
+
+        // Iterate over the files in the directory and store their names
+        for (const auto& entry : fs::directory_iterator(directory_path)) {
+            file_names.push_back(entry.path());
+        }
+
+        // Check if there are any files in the directory
+        if (!file_names.empty()) {
+
+            // Get the last file name (the highest value after sorting)
+            fs::path last_file = file_names.back();
+
+            string filepath = last_file.string();
+            string filename = filepath.substr(filepath.length() - 10);
+            int highestBid = stoi((filename).substr(0, 6));
+            if (highestBid >= stoi(value)) {
+                return "RBD REF\n";
+            }
+        }
+
+        // Create a new file
+        ostringstream bid_name;
+        bid_name << setw(6) << setfill('0') << value;
+        string file_name = aidDir + "BIDS/" + bid_name.str() + ".txt";
+        ofstream fp_bid(file_name);
+
+        if (!fp_bid.is_open()) {return "RDB NOK";}
+
+        // Get the current date time
+        auto currentTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
+        tm* localTime = localtime(&currentTime);
+        char datetime[80];
+        strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localTime);
+
+        string start_name = aidDir + "START_" + AID + ".txt";
+        ifstream startFile(start_name);
+        if (!startFile.good()) {
+            return "RBD NOK\n";
+        }
+        string name, Fname, start_value, time_active, start_time, start_unixTime;
+        startFile >> name >> Fname >> start_value >> time_active >> start_time >> start_unixTime;
+        int auctionDuration = time(nullptr) - stoi(start_unixTime);
+
+        fp_bid << UID << " " << value << " " << datetime << " " << auctionDuration ;
+
+        if (!endFile.good()) {
+            return "RBD ACC\n";
+        }
+    } else {
+        return "RBD NOK\n";
+    }
+    return "RBD NOK\n";
 }
