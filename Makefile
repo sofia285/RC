@@ -9,3 +9,4 @@ test: test.cpp
 clean:
 	rm AS user
 	rm -r ASDIR/USERS/112233
+	rm -r ASDIR/AUCTIONS/001

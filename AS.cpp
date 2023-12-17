@@ -144,7 +144,7 @@ int main(int argc, char **argv){
                 iss >> UID >> password;
                 if (verbose) {
                     cout << "login: UID " << UID << endl;
-                    cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverSocketUDP << endl;
+                    cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
                 }
                 int userCheck = LoginUser(UID, password);
                 if (userCheck == -1){
@@ -288,6 +288,8 @@ int main(int argc, char **argv){
             // Open
             if (commandTCP == "OPA") {
                 iss >> UID >> password >> name >> start_value >> time_active >> Fname >> Fsize;
+                cout << "open auction: UID " << UID << endl;
+                cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
                 ostringstream auction_name;
                 auction_name << setw(3) << setfill('0') << aid++;
                 AID = auction_name.str();
@@ -324,6 +326,10 @@ int main(int argc, char **argv){
                     }
                 }
                 close(file);
+
+                if (CreateHostedFile(UID, password, AID) == 0) {
+                    responseMessage = "ROA NOK\n";
+                }
                 if (CreateSTARTFile(AID, UID, Fname, name, start_value, time_active) == 0) {
                     responseMessage = "ROA NOK\n";
                 }
@@ -331,7 +337,35 @@ int main(int argc, char **argv){
                     responseMessage = "ROA OK " + AID + "\n";
                 }
             }            
-
+            
+            if (commandTCP == "CLS") {
+                iss >> UID >> password >> AID;
+                if (verbose) {
+                    cout << "close auction: UID " << UID << endl;
+                    cout << "IP: " << inet_ntoa(clientAddress.sin_addr) << " Port: "<< serverPort << endl;
+                    int n = closeAuc(UID, password, AID);
+                    if (n == -1) {
+                        responseMessage = "RCL NLG\n";
+                    }
+                    else if (n == 0) {
+                        responseMessage = "RCL NOK\n";
+                    }
+                    else if (n == -2) {
+                        responseMessage = "RCL EAU\n";
+                    }
+                    else if (n == -3) {
+                        responseMessage = "RCL END\n";
+                    }
+                    else if (n == -4) {
+                        responseMessage = "RCL EOW\n";
+                    }
+                    else if (n == 1){
+                        responseMessage = "RCL OK\n";
+                    }
+                    
+                }
+            }
+            cout << "Sending response: " << responseMessage << endl;
             bytesRead = write(newTcpClientSocket, responseMessage.c_str(), responseMessage.length());
             if (bytesRead == -1) {
                 return 1;
@@ -808,6 +842,41 @@ int CreateBIDSDir (string AID) {
     return 1;
 }
 
+int CreateHostedFile(string UID, string password, string AID){
+    // Construct the path to the UID_pass.txt file
+    string passwordFilePath = "./ASDIR/USERS/" + UID + "/" + UID + "_pass.txt";
+
+    cout << "Password file: " << passwordFilePath << endl;
+
+    // Open and check if the password file exists
+    ifstream passwordFile(passwordFilePath);
+    if (!passwordFile.good()) {
+        // if user does not exist, create user
+        return 0;
+    }
+
+    // Read the password from the file
+    string storedPassword;
+    passwordFile >> storedPassword;
+
+    // Check if the provided password matches the stored password
+    if (storedPassword != password) {
+        // the user exists but the password is incorrect
+        return 0;
+    }
+
+    string fileName = "./ASDIR/USERS/" + UID + "/HOSTED/" + AID + ".txt";
+    ofstream fp_hosted(fileName);
+
+    cout << "Create hosted file: " << fileName << endl;
+
+    if (!fp_hosted.is_open()) {return 0;}
+
+    fp_hosted << "Started auction\n";
+
+    return 1;
+}
+
 int CreateSTARTFile(string AID, string UID, string Fname, string name, string start_value, string time_active) {
     string START_filename = "./ASDIR/AUCTIONS/" + AID + "/START_" + AID + ".txt";
     ofstream fp_start(START_filename);
@@ -825,8 +894,107 @@ int CreateSTARTFile(string AID, string UID, string Fname, string name, string st
     char datetime[80];
     strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localTime);
 
-
     fp_start << UID << " " << name << " " << Fname << " " << start_value << " " << time_active << " " << datetime << " " << fulltime;
+
+    return 1;
+}
+
+int closeAuc(string UID, string password, string AID) {
+
+    cout << "close auction: UID " << UID << " pass: " << password << " aid: " << AID << endl;
+
+    string uidDir = "./ASDIR/USERS";
+    string aidDir = "./ASDIR/AUCTIONS";
+
+    // Construct the path to the UID_pass.txt file
+    string uidFilePath = uidDir + "/" + UID;
+
+    // Open and check if the password file exists
+    ifstream uidFile(uidFilePath);
+    if (!uidFile.good()) {
+        cout << "UID not found " << uidFilePath << endl;
+        // if user does not exist
+        return 0;
+    }
+    // Construct the path to the UID_pass.txt file
+    string passwordFilePath = uidDir + "/" + UID + "/" + UID + "_pass.txt";
+
+    // Open and check if the password file exists
+    ifstream passwordFile(passwordFilePath);
+    if (!passwordFile.good()) {
+        cout << "Password file not found" << passwordFilePath << endl;
+        // if user does not exist, create user
+        return 0;
+    }
+
+    // Construct the path to the UID_login.txt file
+    string loginFilePath = uidDir + "/" + UID + "/" + UID + "_login.txt";
+
+    // Open and check if the login file exists
+    ifstream loginFile(loginFilePath);
+    if (!loginFile.good()) {
+        cout << "User not logged in " << loginFilePath << endl;
+        // if user is not logged in
+        return -1;
+    }
+
+    // Construct the path to the AID directory
+    string aidDirPath = aidDir + "/" + AID;
+
+    // Open and check if the aid directory exists
+    ifstream new_aidDir(aidDirPath);
+    if (!new_aidDir.good()) {
+        return -2;
+    }
+
+    string endFilePath = aidDir + "/" + AID + "/" + "END_" + AID + ".txt";
+    ifstream endFile(endFilePath);
+    if (endFile.good()) {
+        return -3;
+    }
+
+    string ownerFilePath = uidDir + "/" + UID + "/" + "HOSTED/" + AID + ".txt";
+    ifstream ownerFile(ownerFilePath);
+    if (!ownerFile.good()) {
+        return -4;
+    }
+
+    // Read the password from the file
+    string storedPassword;
+    passwordFile >> storedPassword;
+
+    // Check if the provided password matches the stored password
+    if (storedPassword == password) {
+        // the user exists and the password is correct
+        string end_name = "./ASDIR/AUCTIONS/" + AID + "/" + "END_" + AID + ".txt";
+        ofstream fp_end(end_name);
+        if (!fp_end.is_open()) {return 0;}
+
+        // Get the current date time
+        auto currentTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
+        tm* localTime = localtime(&currentTime);
+        char datetime[80];
+        strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localTime);
+
+        string start_name = "./ASDIR/AUCTIONS/" + AID + "/" + "START_" + AID + ".txt";
+
+        ifstream startFile(start_name);
+        if (!startFile.good()) {
+            return -2;
+        }
+
+        // Read the password from the file
+        string name, Fname, start_value, time_active, start_time, start_unixTime;
+        startFile >> name >> Fname >> start_value >> time_active >> start_time >> start_unixTime;
+        int auctionDuration = time(nullptr) - stoi(start_unixTime);
+
+        fp_end << datetime << auctionDuration;
+        return 1;
+    } else {
+        // the user exists but the password is incorrect
+        cout << "incorrect password: " << password << endl;
+        return -1;
+    }
 
     return 1;
 }
