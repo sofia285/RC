@@ -565,8 +565,7 @@ int show_asset(string aid, tcp_contact tcp) {
         cout << RECEIVE_ERROR;
         return 1;
     }
-
-    cout << buffer << endl;
+    cout << buffer;
 
     if (strcmp(buffer, "RSA NOK\n") == 0) {
         cout << "A problem occured while sending the file.\n";
@@ -574,24 +573,34 @@ int show_asset(string aid, tcp_contact tcp) {
         return -1;
     }
     else if (strncmp(buffer, "RSA OK", 6) == 0) {
-        cout << "Asset:\n";
-        string fname;
+        string file_info(buffer), fname, content;
         int fsize;
-        istringstream iss(buffer);
-        iss.ignore(7); // Ignore "RAS OK "
-        iss >> fname >> fsize;
 
-        char buffer[fsize];
-        n = read(fd, buffer, fsize);
-        if (n == -1) {/*error*/
-            cout << RECEIVE_ERROR;
-            return 1;
+        while (n = read(fd, buffer, 1024)) {
+            if (n == -1) {/*error*/
+                cout << RECEIVE_ERROR;
+                return 1;
+            }
+            file_info.append(buffer, n);
         }
 
-        cout << buffer << endl;
-
+        cout << "Asset:\n";
+        istringstream iss(file_info);
+        iss.ignore(7); // Ignore "RSA OK "
+        iss >> fname >> fsize;
         cout << "File name: " << fname << endl;
         cout << "File size: " << fsize << endl;
+        content = file_info.substr(7 + fname.length() + to_string(fsize).length() + 2);
+        
+        int file = open(fname.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (file == -1) {
+            cout << "Failed to create file." << endl;
+            close(fd);
+            return -1;
+        }
+        n = write(file, content.c_str(), content.length());
+        close(file);
+
         close(fd);
         return 0;
     }
@@ -790,6 +799,10 @@ int main(int argc, char **argv)
         else if (strcmp(command, "login") == 0) {
             char username[128], password[128];
             sscanf(buffer, "%s %s %s", command, username, password);
+            if (!curr_user.empty() && !curr_pass.empty()) {
+                printf("You are already logged in.\n");
+                continue;
+            }
             if (login(username, password, udp) == 0) {
                 curr_user = username;
                 curr_pass = password;
